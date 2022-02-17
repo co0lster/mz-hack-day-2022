@@ -1,4 +1,11 @@
 version: '3.7'
+networks:
+  redpanda_network:
+    driver: bridge
+    ipam:
+      config:
+      - subnet: 172.24.1.0/24
+        gateway: 172.24.1.1
 services:
   data-generator:
     build: ./data-generator
@@ -6,7 +13,7 @@ services:
     depends_on:
       redpanda: { condition: service_healthy }
   redpanda:
-    image: docker.vectorized.io/vectorized/redpanda:v21.11.3
+    image: docker.vectorized.io/vectorized/redpanda:v21.12.1-wasm-beta1-arm64
     container_name: redpanda
     command:
      - redpanda start
@@ -23,6 +30,12 @@ services:
      - --set redpanda.enable_transactions=true
      - --set redpanda.enable_idempotence=true
      - --set redpanda.auto_create_topics_enabled=true
+     - --set redpanda.enable_coproc=true
+    networks:
+      redpanda_network:
+        ipv4_address: 172.24.1.2
+    volumes:
+      - ./redpanda.yaml:/etc/redpanda/redpanda.yaml
     ports:
      - 9092:9092
      - 8081:8081
@@ -62,3 +75,25 @@ services:
        - materialized
     ports:
       - 3030:3000
+
+services:
+  redpanda:
+    command:
+      - redpanda
+      - start
+      - --node-id 0
+      - --smp 1
+      - --memory 1G
+      - --overprovisioned
+    image: docker.vectorized.io/vectorized/redpanda:v21.11.3-si-beta5
+    container_name: redpanda
+    networks:
+      redpanda_network:
+        ipv4_address: 172.24.1.2
+    volumes:
+      - ./redpanda.yaml:/etc/redpanda/redpanda.yaml
+    ports:
+      - 18081:8081  # Schema registry port
+      - 18082:18082 # Pandaproxy port
+      - 19092:19092 # Kafka API port
+      - 19644:9644  # Prometheus and HTTP admin port
